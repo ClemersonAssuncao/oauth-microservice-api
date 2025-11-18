@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  identity-svc:
+    build: .
+    container_name: identity-svc
+    ports:
+      - "8000:8000"
+    environment:
+      - SERVICE_NAME=identity-svc
+      - SERVICE_PORT=8000
+      - JWT_ALGORITHM=RS256
+      - JWT_EXPIRATION_MINUTES=30
+      - REFRESH_TOKEN_EXPIRATION_DAYS=7
+    volumes:
+      - ./keys:/app/keys
+    restart: unless-stopped

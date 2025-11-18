@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # Identity Service - OAuth 2.1 / OpenID Connect Provider
+  identity-svc:
+    build: ./services/identity-svc
+    container_name: identity-svc
+    ports:
+      - "8000:8000"
+    environment:
+      - SERVICE_NAME=identity-svc
+      - SERVICE_PORT=8000
+      - ISSUER=http://localhost:8000
+      - JWT_ALGORITHM=RS256
+      - JWT_EXPIRATION_MINUTES=30
+      - REFRESH_TOKEN_EXPIRATION_DAYS=7
+      - CORS_ORIGINS=["http://localhost:8080","http://localhost:3000"]
+    volumes:
+      - ./services/identity-svc/keys:/app/keys
+    networks:
+      - microservices-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Orders Service - Domain service (requires authentication)
+  orders-svc:
+    build: ./services/orders-svc
+    container_name: orders-svc
+    ports:
+      - "8001:8001"
+    environment:
+      - SERVICE_NAME=orders-svc
+      - SERVICE_PORT=8001
+      - IDENTITY_SVC_URL=http://identity-svc:8000
+      - JWT_ALGORITHM=RS256
+    networks:
+      - microservices-net
+    depends_on:
+      - identity-svc
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Gateway - Single entry point
+  gateway-svc:
+    build: ./services/gateway-src
+    container_name: gateway-svc
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVICE_NAME=gateway-svc
+      - SERVICE_PORT=8080
+      - IDENTITY_SVC_URL=http://identity-svc:8000
+      - ORDERS_SVC_URL=http://orders-svc:8001
+      - JWT_ALGORITHM=RS256
+      - RATE_LIMIT_REQUESTS=100
+      - RATE_LIMIT_WINDOW_SECONDS=60
+      - CORS_ORIGINS=["*"]
+    networks:
+      - microservices-net
+    depends_on:
+      - identity-svc
+      - orders-svc
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  microservices-net:
+    driver: bridge
