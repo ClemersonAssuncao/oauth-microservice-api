@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     rsa_key_size: int = 2048
     keys_directory: str = "keys"
     
+    # Database settings
+    database_url: str = "sqlite+aiosqlite:///./identity.db"
+    
     # CORS settings
     cors_origins: list = ["*"]
     
