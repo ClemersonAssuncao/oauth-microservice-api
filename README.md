@@ -1,5 +1,7 @@
 # 🔐 Identity & Orders Microservices — com API Gateway (Python / FastAPI)
 
+> ## Em desenvolvimento
+
 Este projeto demonstra uma **arquitetura moderna de microserviços** em Python, com autenticação e autorização baseadas em **OAuth 2.1 / OpenID Connect**.
 
 O sistema é composto por três serviços independentes:

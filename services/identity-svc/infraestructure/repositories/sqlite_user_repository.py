@@ -22,29 +22,10 @@ class SQLiteUserRepository(UserRepository):
         """
         self.session_factory = session_factory
     
-    async def _get_session(self) -> AsyncSession:
-        """Get a new database session"""
+    async def create(self, user: User) -> User:
+        """Create a new user in the database"""
         async for session in self.session_factory():
-            return session
-    
-    async def save(self, user: User) -> User:
-        """Save or update a user in the database"""
-        session = await self._get_session()
-        
-        try:
-            # Check if user exists
-            result = await session.execute(
-                select(UserModel).where(UserModel.id == user.id)
-            )
-            existing_user = result.scalar_one_or_none()
-            
-            if existing_user:
-                # Update existing user
-                existing_user.username = user.username
-                existing_user.email = user.email
-                existing_user.hashed_password = user.hashed_password
-                existing_user.is_active = user.is_active
-            else:
+            try:
                 # Create new user
                 user_model = UserModel(
                     id=user.id,
@@ -54,31 +35,59 @@ class SQLiteUserRepository(UserRepository):
                     is_active=user.is_active
                 )
                 session.add(user_model)
-            
-            # Update roles - delete old ones and insert new ones
-            await session.execute(
-                delete(user_roles).where(user_roles.c.user_id == user.id)
-            )
-            
-            for role in user.roles:
-                await session.execute(
-                    insert(user_roles).values(user_id=user.id, role=role.value)
+                
+                # Insert roles
+                for role in user.roles:
+                    await session.execute(
+                        insert(user_roles).values(user_id=user.id, role=role.value)
+                    )
+                
+                await session.commit()
+                return user
+                
+            except Exception as e:
+                await session.rollback()
+                raise e
+    
+    async def update(self, user: User) -> User:
+        """Update an existing user in the database"""
+        async for session in self.session_factory():
+            try:
+                # Get existing user
+                result = await session.execute(
+                    select(UserModel).where(UserModel.id == user.id)
                 )
-            
-            await session.commit()
-            return user
-            
-        except Exception as e:
-            await session.rollback()
-            raise e
-        finally:
-            await session.close()
+                existing_user = result.scalar_one_or_none()
+                
+                if not existing_user:
+                    raise ValueError(f"User with id {user.id} not found")
+                
+                # Update user
+                existing_user.username = user.username
+                existing_user.email = user.email
+                existing_user.hashed_password = user.hashed_password
+                existing_user.is_active = user.is_active
+                
+                # Update roles - delete old ones and insert new ones
+                await session.execute(
+                    delete(user_roles).where(user_roles.c.user_id == user.id)
+                )
+                
+                for role in user.roles:
+                    await session.execute(
+                        insert(user_roles).values(user_id=user.id, role=role.value)
+                    )
+                
+                await session.commit()
+                return user
+                
+            except Exception as e:
+                await session.rollback()
+                raise e
     
     async def get_by_id(self, user_id: str) -> Optional[User]:
         """Get user by ID"""
-        session = await self._get_session()
-        
-        try:
+        async for session in self.session_factory():
             result = await session.execute(
                 select(UserModel).where(UserModel.id == user_id)
             )
@@ -101,15 +110,10 @@ class SQLiteUserRepository(UserRepository):
                 roles=roles,
                 is_active=user_model.is_active
             )
-            
-        finally:
-            await session.close()
     
     async def get_by_username(self, username: str) -> Optional[User]:
         """Get user by username"""
-        session = await self._get_session()
-        
-        try:
+        async for session in self.session_factory():
             result = await session.execute(
                 select(UserModel).where(UserModel.username == username)
             )
@@ -132,15 +136,10 @@ class SQLiteUserRepository(UserRepository):
                 roles=roles,
                 is_active=user_model.is_active
             )
-            
-        finally:
-            await session.close()
     
     async def get_by_email(self, email: str) -> Optional[User]:
         """Get user by email"""
-        session = await self._get_session()
-        
-        try:
+        async for session in self.session_factory():
             result = await session.execute(
                 select(UserModel).where(UserModel.email == email)
             )
@@ -163,44 +162,36 @@ class SQLiteUserRepository(UserRepository):
                 roles=roles,
                 is_active=user_model.is_active
             )
-            
-        finally:
-            await session.close()
     
     async def delete(self, user_id: str) -> bool:
         """Delete a user by ID"""
-        session = await self._get_session()
-        
-        try:
-            # Delete user roles first
-            await session.execute(
-                delete(user_roles).where(user_roles.c.user_id == user_id)
-            )
-            
-            # Delete user
-            result = await session.execute(
-                select(UserModel).where(UserModel.id == user_id)
-            )
-            user_model = result.scalar_one_or_none()
-            
-            if not user_model:
-                return False
-            
-            await session.delete(user_model)
-            await session.commit()
-            return True
-            
-        except Exception as e:
-            await session.rollback()
-            raise e
-        finally:
-            await session.close()
+        async for session in self.session_factory():
+            try:
+                # Delete user roles first
+                await session.execute(
+                    delete(user_roles).where(user_roles.c.user_id == user_id)
+                )
+                
+                # Delete user
+                result = await session.execute(
+                    select(UserModel).where(UserModel.id == user_id)
+                )
+                user_model = result.scalar_one_or_none()
+                
+                if not user_model:
+                    return False
+                
+                await session.delete(user_model)
+                await session.commit()
+                return True
+                
+            except Exception as e:
+                await session.rollback()
+                raise e
     
     async def list_all(self) -> List[User]:
         """List all users"""
-        session = await self._get_session()
-        
-        try:
+        async for session in self.session_factory():
             result = await session.execute(select(UserModel))
             user_models = result.scalars().all()
             
@@ -222,32 +213,19 @@ class SQLiteUserRepository(UserRepository):
                 ))
             
             return users
-            
-        finally:
-            await session.close()
     
     async def exists_by_username(self, username: str) -> bool:
         """Check if user exists by username"""
-        session = await self._get_session()
-        
-        try:
+        async for session in self.session_factory():
             result = await session.execute(
                 select(UserModel).where(UserModel.username == username)
             )
             return result.scalar_one_or_none() is not None
-            
-        finally:
-            await session.close()
     
     async def exists_by_email(self, email: str) -> bool:
         """Check if user exists by email"""
-        session = await self._get_session()
-        
-        try:
+        async for session in self.session_factory():
             result = await session.execute(
                 select(UserModel).where(UserModel.email == email)
             )
             return result.scalar_one_or_none() is not None
-            
-        finally:
-            await session.close()

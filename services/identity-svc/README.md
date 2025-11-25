@@ -18,7 +18,7 @@ cp .env.example .env
 
 3. **Run the service:**
 ```bash
-uvicorn interfaces.api.main:app --reload --port 8000
+python -m uvicorn main:app --reload --port 8000
 ```
 
 ### Docker
@@ -52,7 +52,7 @@ The service creates test users on startup:
 ### Password Grant (Login)
 
 ```bash
-curl -X POST "http://localhost:8000/oauth/token" \
+curl -X POST "http://localhost:8000/api/v1/auth/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "username=testuser&password=test123&grant_type=password"
 ```
@@ -70,7 +70,7 @@ Response:
 ### Refresh Token
 
 ```bash
-curl -X POST "http://localhost:8000/oauth/refresh" \
+curl -X POST "http://localhost:8000/api/v1/auth/refresh" \
   -H "Content-Type: application/json" \
   -d '{"refresh_token": "YOUR_REFRESH_TOKEN"}'
 ```
@@ -78,13 +78,13 @@ curl -X POST "http://localhost:8000/oauth/refresh" \
 ### Token Introspection
 
 ```bash
-curl -X POST "http://localhost:8000/oauth/introspect?token=YOUR_TOKEN"
+curl -X POST "http://localhost:8000/api/v1/auth/introspect?token=YOUR_TOKEN"
 ```
 
 ### Get User Info
 
 ```bash
-curl -X GET "http://localhost:8000/oauth/userinfo" \
+curl -X GET "http://localhost:8000/api/v1/auth/userinfo" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -93,7 +93,7 @@ curl -X GET "http://localhost:8000/oauth/userinfo" \
 ### Register New User
 
 ```bash
-curl -X POST "http://localhost:8000/users/register" \
+curl -X POST "http://localhost:8000/api/v1/users/register" \
   -H "Content-Type: application/json" \
   -d '{
     "username": "newuser",
@@ -105,14 +105,14 @@ curl -X POST "http://localhost:8000/users/register" \
 ### Get Current User
 
 ```bash
-curl -X GET "http://localhost:8000/users/me" \
+curl -X GET "http://localhost:8000/api/v1/users/me" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 ### List All Users (Admin only)
 
 ```bash
-curl -X GET "http://localhost:8000/users" \
+curl -X GET "http://localhost:8000/api/v1/users" \
   -H "Authorization: Bearer ADMIN_ACCESS_TOKEN"
 ```
 
@@ -131,7 +131,14 @@ identity-svc/
 │   └── repositories/    # Repository implementations
 └── interfaces/          # API layer
     └── api/
-        └── main.py      # FastAPI application
+        ├── v1/          # API version 1
+        │   ├── schemas/ # Pydantic models
+        │   ├── auth.py  # Auth endpoints
+        │   ├── users.py # User endpoints
+        │   └── discovery.py # OpenID endpoints
+        ├── container.py # DI Container
+        └── dependencies.py # FastAPI dependencies
+└── main.py              # Application entry point
 ```
 
 ## 🔧 Configuration
@@ -189,13 +196,22 @@ Access Token payload:
 - **passlib** - Password hashing
 - **cryptography** - RSA key generation
 - **pydantic** - Data validation
+- **SQLAlchemy** - ORM for database
+- **aiosqlite** - Async SQLite driver
+
+## 🗄️ Database
+
+The service uses SQLite for persistence. The database file `identity.db` is created automatically on startup.
+
+**Note:** For production, consider using PostgreSQL and implementing Alembic migrations.
 
 ## 🚀 Next Steps
 
-1. Implement authorization code flow
-2. Add client credentials management
-3. Add persistent database (PostgreSQL)
-4. Implement rate limiting
-5. Add audit logging
-6. Add email verification
-7. Implement 2FA/MFA
+1. Implement Alembic migrations
+2. Implement authorization code flow
+3. Add client credentials management
+4. Migrate to PostgreSQL for production
+5. Implement rate limiting
+6. Add audit logging
+7. Add email verification
+8. Implement 2FA/MFA
