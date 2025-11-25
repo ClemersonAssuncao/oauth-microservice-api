@@ -9,7 +9,7 @@ import logging
 from interfaces.api.container import Container
 from interfaces.api.v1 import auth, users, discovery
 from domain.entities.user import UserRole
-from application.auth_service import RegistrationError
+from application.commands.register_user_command import RegisterUserCommand, RegistrationError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,26 +27,28 @@ async def create_default_users(container: Container) -> None:
     """Create default admin and test users"""
     # Create a default admin user for testing
     try:
-        admin_user = await container.auth_service.register_user(
+        command = RegisterUserCommand(
             username="admin",
             email="admin@example.com",
-            password="admin123",
-            roles=[UserRole.ADMIN, UserRole.USER]
+            password="admin123"
         )
-        logger.info(f"✅ Default admin user created: {admin_user.username}")
+        result = await container.command_bus.dispatch(command)
+        logger.info(f"✅ Default admin user created: {result.user.username}")
     except RegistrationError:
         logger.info("ℹ️  Admin user already exists")
     
     # Create a test user
     try:
-        test_user = await container.auth_service.register_user(
+        command = RegisterUserCommand(
             username="testuser",
             email="test@example.com",
             password="test123"
         )
-        logger.info(f"✅ Test user created: {test_user.username}")
+        result = await container.command_bus.dispatch(command)
+        logger.info(f"✅ Test user created: {result.user.username}")
     except RegistrationError:
         logger.info("ℹ️  Test user already exists")
+
 
 
 def create_app() -> FastAPI:
