@@ -14,6 +14,10 @@ from interfaces.api.v1.schemas import (
 from interfaces.api.container import Container
 from application.commands.login_command import LoginCommand, AuthenticationError
 from application.commands.create_token_command import CreateTokenCommand
+from application.commands.verify_and_refresh_token_command import (
+    VerifyAndRefreshTokenCommand,
+    TokenVerificationError
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -57,6 +61,33 @@ async def oauth_token(form_data: OAuth2PasswordRequestForm = Depends()):
         )
     except AuthenticationError as e:
         logger.warning(f"Authentication failed for user {form_data.username}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_token(request: RefreshTokenRequest):
+    """
+    Refresh access token using refresh token
+    """
+    try:
+        command = VerifyAndRefreshTokenCommand(
+            refresh_token=request.refresh_token
+        )
+        result = await container.command_bus.dispatch(command)
+        
+        logger.info("Token refreshed successfully")
+        return TokenResponse(
+            access_token=result.access_token,
+            refresh_token=result.refresh_token,
+            token_type=result.token_type,
+            expires_in=result.expires_in
+        )
+    except TokenVerificationError as e:
+        logger.warning(f"Token refresh failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),

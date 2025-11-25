@@ -23,6 +23,10 @@ from application.commands.refresh_token_command import (
     RefreshTokenCommand,
     RefreshTokenCommandHandler
 )
+from application.commands.verify_and_refresh_token_command import (
+    VerifyAndRefreshTokenCommand,
+    VerifyAndRefreshTokenCommandHandler
+)
 
 
 class Container:
@@ -47,6 +51,7 @@ class Container:
             self.rsa_manager = RSAKeyManager(keys_dir=self.settings.keys_directory)
             self.rsa_manager.ensure_keys_exist()
             private_key = self.rsa_manager.load_private_key()
+            public_key = self.rsa_manager.load_public_key()
             
             # Initialize repository with database session factory
             self.user_repository = SQLiteUserRepository(
@@ -68,6 +73,13 @@ class Container:
                 access_token_expire_minutes=self.settings.jwt_expiration_minutes,
                 refresh_token_expire_days=self.settings.refresh_token_expiration_days
             )
+            self.verify_and_refresh_token_handler = VerifyAndRefreshTokenCommandHandler(
+                user_repository=self.user_repository,
+                create_token_handler=self.create_token_handler,
+                public_key=public_key,
+                algorithm=self.settings.jwt_algorithm,
+                access_token_expire_minutes=self.settings.jwt_expiration_minutes
+            )
             
             # Initialize command bus
             self.command_bus = CommandBus()
@@ -75,5 +87,6 @@ class Container:
             self.command_bus.register(LoginCommand, self.login_handler)
             self.command_bus.register(CreateTokenCommand, self.create_token_handler)
             self.command_bus.register(RefreshTokenCommand, self.refresh_token_handler)
+            self.command_bus.register(VerifyAndRefreshTokenCommand, self.verify_and_refresh_token_handler)
             
             Container._initialized = True
